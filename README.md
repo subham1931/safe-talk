@@ -1,50 +1,60 @@
-# Welcome to your Expo app 👋
+# safeTalk
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Anonymous, pay-per-minute emotional support marketplace built with **React Native + Expo SDK 54**.
 
-## Get started
+## Features
 
-1. Install dependencies
+- **Seeker flow**: Anonymous signup, browse listeners, chat/voice/video sessions, wallet recharge
+- **Listener flow**: Multi-step onboarding, ID verification UI, dashboard with online toggle
+- **Mock services**: `MockCallService` and `MockPaymentService` — fully demoable without API keys
+- **Real backend**: Supabase Auth, Postgres, Realtime chat, Edge Functions for wallet/billing
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Quick Start
 
 ```bash
-npm run reset-project
+cd safeTalk
+npm install
+npm start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Scan the QR code with **Expo Go** (SDK 54) on your iPhone or Android device.
 
-## Learn more
+## Dev Login (no phone OTP needed)
 
-To learn more about developing your project with Expo, look at the following resources:
+Phone OTP requires Twilio configuration in Supabase. For development:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+1. Open the app → Phone screen
+2. Use **Dev Sign In** with any email/password (e.g. `test@safetalk.app` / `password123`)
+3. Complete role selection and profile setup
 
-## Join the community
+## Project Structure
 
-Join our community of developers creating universal apps.
+```
+app/           # Expo Router screens
+components/    # Reusable UI
+constants/     # Theme, categories, mock data
+services/      # Auth, wallet, billing, chat, call, payment (interfaces + mocks)
+store/         # Zustand state
+types/         # TypeScript types
+lib/           # Supabase client
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Swapping Mock Services
+
+- **Calls**: Change import in `services/call/index.ts` → `AgoraCallService`
+- **Payments**: Change import in `services/payment/index.ts` → `RazorpayPaymentService`
+
+## Supabase
+
+- Database schema applied via migration (`profiles`, `listener_profiles`, `sessions`, `messages`, `transactions`)
+- Edge Functions: `wallet-recharge`, `session-billing`
+- Wallet balance is **never** updated client-side — only via Edge Functions
+
+## Environment
+
+Copy `.env` and set:
+
+```
+EXPO_PUBLIC_SUPABASE_URL=your_url
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+```
