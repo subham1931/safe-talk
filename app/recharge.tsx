@@ -1,34 +1,62 @@
 import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack } from 'expo-router';
 import { Button } from '@/components/ui/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RECHARGE_PACKS } from '@/constants/rechargePacks';
-import { FlatColors, FontSize, Spacing, BorderRadius } from '@/constants/theme';
+import { FlatColors, FontSize, Spacing, BorderRadius, Fonts } from '@/constants/theme';
 import { useWalletStore } from '@/store/walletStore';
 import { formatCurrency } from '@/utils/helpers';
 import { useTheme } from '@/hooks/useTheme';
 
 function createStyles(colors: FlatColors) {
+  const screenWidth = Dimensions.get('window').width;
+  const packWidth = (screenWidth - Spacing.lg * 2 - Spacing.sm) / 2;
+
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: Spacing.lg },
     balanceCard: {
-      backgroundColor: colors.primary,
       borderRadius: BorderRadius.lg,
       padding: Spacing.lg,
       marginBottom: Spacing.lg,
-    },
-    balanceLabel: { fontSize: FontSize.sm, color: 'rgba(255,255,255,0.8)' },
-    balanceAmount: { fontSize: 32, fontWeight: '800', color: colors.onPrimary },
-    sectionTitle: { fontSize: FontSize.md, fontWeight: '700', color: colors.text, marginBottom: Spacing.sm },
-    packGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.lg },
-    packCard: {
-      width: '48%',
-      backgroundColor: colors.surface,
-      borderRadius: BorderRadius.md,
-      padding: Spacing.md,
-      borderWidth: 2,
+      borderWidth: 1,
       borderColor: colors.border,
+      overflow: 'hidden',
+    },
+    balanceLabel: {
+      fontFamily: Fonts.bodyMedium,
+      fontSize: FontSize.sm,
+      color: colors.textSecondary,
+    },
+    balanceAmount: {
+      fontFamily: Fonts.headlineExtra,
+      fontSize: 32,
+      color: colors.text,
+      marginTop: Spacing.sm,
+    },
+    sectionTitle: {
+      fontFamily: Fonts.bodySemiBold,
+      fontSize: FontSize.md,
+      color: colors.text,
+      marginBottom: Spacing.sm,
+    },
+    packGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: Spacing.sm,
+      marginBottom: Spacing.lg,
+    },
+    packCard: {
+      width: packWidth,
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      minHeight: 96,
+      justifyContent: 'center',
     },
     packSelected: { borderColor: colors.primary, backgroundColor: colors.primary + '08' },
     packLabel: { fontSize: FontSize.xs, color: colors.textSecondary },
@@ -59,6 +87,12 @@ export default function RechargeScreen() {
   const { balance, recharge, isProcessing } = useWalletStore();
   const [customAmount, setCustomAmount] = useState('');
   const [selectedPack, setSelectedPack] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<{
+    title: string;
+    message: string;
+    variant: 'success' | 'error' | 'warning';
+    onConfirm?: () => void;
+  } | null>(null);
 
   const handlePay = async () => {
     let amount: number;
@@ -72,18 +106,29 @@ export default function RechargeScreen() {
       amount = parseFloat(customAmount);
       packId = 'custom';
       if (isNaN(amount) || amount < 10) {
-        Alert.alert('Invalid amount', 'Minimum recharge is ₹10');
+        setDialog({
+          title: 'Invalid amount',
+          message: 'Minimum recharge is ₹10.',
+          variant: 'warning',
+        });
         return;
       }
     }
 
     const success = await recharge(amount, packId);
     if (success) {
-      Alert.alert('Success', `₹${amount.toFixed(0)} added to your wallet!`, [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      setDialog({
+        title: 'Recharge successful',
+        message: `₹${amount.toFixed(0)} has been added to your wallet.`,
+        variant: 'success',
+        onConfirm: () => router.back(),
+      });
     } else {
-      Alert.alert('Payment failed', 'Please try again.');
+      setDialog({
+        title: 'Payment failed',
+        message: 'Please try again.',
+        variant: 'error',
+      });
     }
   };
 
@@ -91,10 +136,14 @@ export default function RechargeScreen() {
     <>
       <Stack.Screen options={{ title: 'Recharge Wallet' }} />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <View style={styles.balanceCard}>
+        <LinearGradient
+          colors={[colors.surfaceAlt, colors.surface]}
+          style={styles.balanceCard}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}>
           <Text style={styles.balanceLabel}>Current Balance</Text>
           <Text style={styles.balanceAmount}>{formatCurrency(balance)}</Text>
-        </View>
+        </LinearGradient>
 
         <Text style={styles.sectionTitle}>Choose a pack</Text>
         <View style={styles.packGrid}>
@@ -139,6 +188,18 @@ export default function RechargeScreen() {
           style={{ marginTop: Spacing.lg }}
         />
       </ScrollView>
+
+      <ConfirmDialog
+        visible={dialog !== null}
+        title={dialog?.title ?? ''}
+        message={dialog?.message}
+        variant={dialog?.variant}
+        confirmLabel="OK"
+        onConfirm={() => {
+          dialog?.onConfirm?.();
+          setDialog(null);
+        }}
+      />
     </>
   );
 }

@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,7 @@ import { useWalletStore } from '@/store/walletStore';
 import { useSessionStore } from '@/store/sessionStore';
 import { ListenerProfile, SessionType } from '@/types';
 import { formatCurrency } from '@/utils/helpers';
+import { navigateToSession } from '@/utils/sessionNavigation';
 import { useTheme } from '@/hooks/useTheme';
 
 function createStyles(colors: FlatColors, typography: TypographyTokens) {
@@ -106,22 +108,7 @@ export default function SeekerHomeScreen() {
       selectedListener.tags[0]
     );
 
-    const route =
-      sessionType === 'chat'
-        ? `/session/chat/${session.id}`
-        : sessionType === 'call'
-          ? `/session/call/${session.id}`
-          : `/session/video/${session.id}`;
-
-    router.push({
-      pathname: route as '/session/chat/[id]',
-      params: {
-        id: session.id,
-        listenerId: selectedListener.id,
-        listenerName: selectedListener.display_name,
-        rate: rate.toString(),
-      },
-    });
+    navigateToSession(session, { listenerName: selectedListener.display_name });
   };
 
   const onRefresh = useCallback(async () => {
@@ -142,7 +129,9 @@ export default function SeekerHomeScreen() {
             <Ionicons name="wallet" size={16} color={colors.primary} />
             <Text style={styles.walletText}>{formatCurrency(balance)}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.bellBtn}>
+          <TouchableOpacity
+            style={styles.bellBtn}
+            onPress={() => Alert.alert('Notifications', 'Notification settings coming soon.')}>
             <Ionicons name="notifications-outline" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>

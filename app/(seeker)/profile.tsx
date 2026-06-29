@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@/components/ui/Avatar';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ThemeSegmentControl } from '@/components/ui/ThemeSegmentControl';
 import { BorderRadius, FlatColors, FontSize, Spacing, Fonts } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
@@ -46,6 +47,10 @@ function createStyles(colors: FlatColors) {
       fontFamily: Fonts.headlineBold,
       fontSize: FontSize.md,
       color: colors.ink,
+    },
+    identityActions: {
+      alignItems: 'flex-end',
+      gap: Spacing.xs,
     },
     sectionLabel: {
       fontFamily: Fonts.bodySemiBold,
@@ -99,21 +104,25 @@ export default function ProfileTabScreen() {
   const profile = useAuthStore((s) => s.profile);
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [logoutVisible, setLogoutVisible] = useState(false);
+  const [infoDialog, setInfoDialog] = useState<{ title: string; message: string } | null>(null);
 
-  const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: () => {
-          void logoutAndRedirect();
-        },
-      },
-    ]);
+  const handleLogout = () => setLogoutVisible(true);
+
+  const handleMenuPress = (item: { label: string; route: string | null }) => {
+    if (item.route) {
+      router.push(item.route as '/edit-profile' | '/faqs' | '/recharge' | '/(seeker)/sessions');
+      return;
+    }
+    if (item.label === 'Contact Support') {
+      Linking.openURL('mailto:support@safetalk.app?subject=safeTalk%20Support');
+      return;
+    }
+    setInfoDialog({ title: item.label, message: 'This feature is coming soon.' });
   };
 
   const menuItems = [
+    { icon: 'create-outline', label: 'Edit Profile', route: '/edit-profile' },
     { icon: 'wallet-outline', label: 'Wallet', route: '/recharge' },
     { icon: 'time-outline', label: 'Session History', route: '/(seeker)/sessions' },
     { icon: 'notifications-outline', label: 'Notifications', route: null },
@@ -126,14 +135,26 @@ export default function ProfileTabScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Profile</Text>
 
-      <View style={styles.identityCard}>
-        <Avatar avatarId={profile?.avatar_id} size={72} showOnline isOnline />
+      <TouchableOpacity
+        style={styles.identityCard}
+        onPress={() => router.push('/edit-profile')}
+        activeOpacity={0.85}>
+        <Avatar
+          avatarId={profile?.avatar_id}
+          imageUri={profile?.avatar_url ?? undefined}
+          size={72}
+          showOnline
+          isOnline
+        />
         <View style={styles.identityInfo}>
           <Text style={styles.anonName}>{profile?.anonymous_name}</Text>
           <Text style={styles.roleBadge}>Anonymous Seeker</Text>
         </View>
-        <Text style={styles.balance}>{formatCurrency(profile?.wallet_balance ?? 0)}</Text>
-      </View>
+        <View style={styles.identityActions}>
+          <Text style={styles.balance}>{formatCurrency(profile?.wallet_balance ?? 0)}</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.inkSecondary} />
+        </View>
+      </TouchableOpacity>
 
       <View style={styles.themeCard}>
         <Text style={styles.sectionLabel}>Appearance</Text>
@@ -144,7 +165,7 @@ export default function ProfileTabScreen() {
         <TouchableOpacity
           key={item.label}
           style={styles.menuItem}
-          onPress={() => item.route && router.push(item.route as '/faqs')}>
+          onPress={() => handleMenuPress(item)}>
           <Ionicons name={item.icon as 'wallet-outline'} size={22} color={colors.inkSecondary} />
           <Text style={styles.menuLabel}>{item.label}</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.inkSecondary} />
@@ -154,19 +175,33 @@ export default function ProfileTabScreen() {
       <View style={styles.accountSection}>
         <Text style={styles.sectionLabel}>Account</Text>
 
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/(auth)/seeker-setup?edit=1')}>
-          <Ionicons name="create-outline" size={22} color={colors.inkSecondary} />
-          <Text style={styles.menuLabel}>Edit Profile</Text>
-          <Ionicons name="chevron-forward" size={20} color={colors.inkSecondary} />
-        </TouchableOpacity>
-
         <TouchableOpacity style={[styles.menuItem, styles.logoutItem]} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={22} color={colors.error} />
           <Text style={styles.logoutLabel}>Logout</Text>
         </TouchableOpacity>
       </View>
+
+      <ConfirmDialog
+        visible={logoutVisible}
+        title="Logout"
+        message="Are you sure you want to logout?"
+        variant="danger"
+        confirmLabel="Logout"
+        cancelLabel="Cancel"
+        onCancel={() => setLogoutVisible(false)}
+        onConfirm={() => {
+          setLogoutVisible(false);
+          void logoutAndRedirect();
+        }}
+      />
+
+      <ConfirmDialog
+        visible={infoDialog !== null}
+        title={infoDialog?.title ?? ''}
+        message={infoDialog?.message}
+        variant="info"
+        onConfirm={() => setInfoDialog(null)}
+      />
     </ScrollView>
   );
 }

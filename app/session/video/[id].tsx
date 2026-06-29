@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { callService } from '@/services/call';
@@ -9,7 +9,7 @@ import { FlatColors, FontSize, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useWalletStore } from '@/store/walletStore';
 import { useSessionStore } from '@/store/sessionStore';
-import { endSessionBilling } from '@/services/billing/BillingService';
+import { endSessionBilling, startBillingInterval } from '@/services/billing/BillingService';
 import { submitReport } from '@/services/listener/ListenerService';
 import { formatDuration, formatCurrency } from '@/utils/helpers';
 import { useTheme } from '@/hooks/useTheme';
@@ -69,18 +69,23 @@ function createStyles(colors: FlatColors) {
 export default function VideoCallScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { id, listenerId, listenerName } = useLocalSearchParams<{
+  const { id, listenerId, listenerName, rate } = useLocalSearchParams<{
     id: string;
     listenerId: string;
     listenerName: string;
+    rate: string;
   }>();
 
   const profile = useAuthStore((s) => s.profile);
   const balance = useWalletStore((s) => s.balance);
+  const setBalance = useWalletStore((s) => s.setBalance);
   const endSession = useSessionStore((s) => s.endSession);
+  const setElapsedSeconds = useSessionStore((s) => s.setElapsedSeconds);
 
   const [callState, setCallState] = useState(callService.getState());
   const [reportVisible, setReportVisible] = useState(false);
+  const [lowBalanceWarned, setLowBalanceWarned] = useState(false);
+  const ratePerMin = parseFloat(rate ?? '12');
 
   useEffect(() => {
     callService.startCall(id, 'video');
@@ -91,26 +96,57 @@ export default function VideoCallScreen() {
     };
   }, [id]);
 
-  const handleEnd = async () => {
+  const handleEnd = useCallback(async () => {
     await callService.endCall();
+    setElapsedSeconds(callService.getState().elapsedSeconds);
     if (!id.startsWith('mock-')) await endSessionBilling(id).catch(() => {});
-    const session = await endSession(id);
+    const session = await endSession(id, { listenerDisplayName: listenerName });
     router.replace({
       pathname: '/post-session/[id]',
       params: {
         id,
-        duration: callState.elapsedSeconds.toString(),
+        duration: callService.getState().elapsedSeconds.toString(),
         amount: session.total_amount.toString(),
         listenerId,
         listenerName,
       },
     });
-  };
+  }, [id, listenerId, listenerName, endSession, setElapsedSeconds]);
+
+  useEffect(() => {
+    if (id.startsWith('mock-')) {
+      const mockBilling = setInterval(() => {
+        const debit = ratePerMin / 60;
+        const newBalance = balance - debit;
+        if (newBalance <= 0) {
+          handleEnd();
+          return;
+        }
+        setBalance(newBalance);
+        if (newBalance < ratePerMin * 2 && !lowBalanceWarned) {
+          setLowBalanceWarned(true);
+          Alert.alert('Low balance', 'Less than 2 minutes remaining. Recharge to continue.');
+        }
+      }, 60000);
+      return () => clearInterval(mockBilling);
+    }
+
+    return startBillingInterval(id, (result) => {
+      setBalance(result.wallet_balance);
+      if (result.low_balance_warning && !lowBalanceWarned) {
+        setLowBalanceWarned(true);
+        Alert.alert('Low balance', 'Less than 2 minutes remaining.');
+      }
+      if (result.session_ended) {
+        handleEnd();
+      }
+    });
+  }, [id, ratePerMin]);
 
   const handleReport = async (reason: string, details: string) => {
     if (profile) await submitReport(profile.id, listenerId, reason, details, id).catch(() => {});
     setReportVisible(false);
-    handleEnd();
+    await handleEnd();
   };
 
   return (

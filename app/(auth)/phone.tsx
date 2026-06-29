@@ -22,6 +22,7 @@ import {
   BorderRadius,
 } from '@/constants/theme';
 import { sendOtp } from '@/services/auth/AuthService';
+import { getListenerProfile } from '@/services/listener/ListenerService';
 import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -119,7 +120,14 @@ export default function PhoneScreen() {
       await loginWithEmail(email.trim(), password);
       const profile = useAuthStore.getState().profile;
       if (profile?.onboarding_complete) {
-        router.replace(profile.role === 'listener' ? '/(listener)' : '/(seeker)');
+        if (profile.role === 'listener') {
+          const listenerProfile = await getListenerProfile(profile.id);
+          router.replace(
+            listenerProfile?.status === 'pending' ? '/(auth)/listener-pending' : '/(listener)'
+          );
+        } else {
+          router.replace('/(seeker)');
+        }
       } else {
         router.replace('/(auth)/role');
       }
@@ -152,7 +160,7 @@ export default function PhoneScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { overflow: 'hidden' }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <DecorativeDashedCircles tone="plum" />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -189,6 +197,7 @@ export default function PhoneScreen() {
             <PillTextInput
               placeholder="Password"
               secureTextEntry
+              showPasswordToggle
               value={password}
               onChangeText={setPassword}
               containerStyle={{ marginBottom: Spacing.lg }}

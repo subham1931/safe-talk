@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import { Session, SessionType } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { saveLocalSessionHistory } from '@/services/session/LocalSessionHistory';
+import { debitWallet } from '@/services/wallet/WalletService';
+import { useWalletStore } from './walletStore';
+import { useAuthStore } from './authStore';
 
 interface SessionState {
   activeSession: Session | null;
@@ -16,10 +20,11 @@ interface SessionState {
   ) => Promise<Session>;
   acceptSession: (sessionId: string) => Promise<void>;
   declineSession: (sessionId: string) => Promise<void>;
-  endSession: (sessionId: string) => Promise<Session>;
+  endSession: (sessionId: string, opts?: { listenerDisplayName?: string }) => Promise<Session>;
   setActiveSession: (session: Session | null) => void;
   setPendingRequest: (session: Session | null) => void;
   subscribeToIncomingRequests: (listenerId: string) => () => void;
+  subscribeToSessionStatus: (sessionId: string, onUpdate: (session: Session) => void) => () => void;
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -64,7 +69,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     if (error) throw error;
     const session = data as Session;
-    set({ activeSession: session });
+    if (session.status === 'active') {
+      set({ activeSession: session });
+    }
     return session;
   },
 
@@ -84,27 +91,58 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ pendingRequest: null });
   },
 
-  endSession: async (sessionId) => {
+  endSession: async (sessionId, opts) => {
     const isMock = sessionId.startsWith('mock-');
+    const active = get().activeSession;
+    const elapsed = get().elapsedSeconds;
+    const totalMinutes = elapsed / 60;
+    const totalAmount = totalMinutes * (active?.rate_per_min ?? 0);
     let session: Session;
 
     if (isMock) {
       session = {
-        ...get().activeSession!,
+        ...active!,
         status: 'ended',
         ended_at: new Date().toISOString(),
-        total_minutes: get().elapsedSeconds / 60,
-        total_amount: (get().elapsedSeconds / 60) * (get().activeSession?.rate_per_min ?? 0),
+        total_minutes: totalMinutes,
+        total_amount: totalAmount,
       };
+      if (active?.seeker_id) {
+        await saveLocalSessionHistory(active.seeker_id, {
+          ...session,
+          listener_display_name: opts?.listenerDisplayName,
+        });
+      }
     } else {
       const { data, error } = await supabase
         .from('sessions')
-        .update({ status: 'ended', ended_at: new Date().toISOString() })
+        .update({
+          status: 'ended',
+          ended_at: new Date().toISOString(),
+          total_minutes: totalMinutes,
+          total_amount: totalAmount,
+        })
         .eq('id', sessionId)
         .select()
         .single();
       if (error) throw error;
       session = data as Session;
+    }
+
+    const chargeAmount = Math.round(totalAmount * 100) / 100;
+    if (chargeAmount > 0) {
+      try {
+        const sessionRef = isMock ? null : sessionId;
+        const { wallet_balance } = await debitWallet(
+          chargeAmount,
+          sessionRef,
+          `${session.type} session`
+        );
+        useWalletStore.getState().setBalance(wallet_balance);
+        await useAuthStore.getState().refreshProfile();
+      } catch (err) {
+        console.warn('Wallet debit failed — apply debit_wallet migration:', err);
+      }
     }
 
     set({ activeSession: null, elapsedSeconds: 0 });
@@ -130,6 +168,32 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           if (session.status === 'pending') {
             set({ pendingRequest: session });
           }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  },
+
+  subscribeToSessionStatus: (sessionId, onUpdate) => {
+    const channel = supabase
+      .channel(`session-status:${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'sessions',
+          filter: `id=eq.${sessionId}`,
+        },
+        (payload) => {
+          const session = payload.new as Session;
+          if (session.status === 'active') {
+            set({ activeSession: session });
+          }
+          onUpdate(session);
         }
       )
       .subscribe();

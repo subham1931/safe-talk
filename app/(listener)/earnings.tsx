@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { FlatColors, FontSize, Spacing, BorderRadius } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
@@ -41,7 +41,17 @@ export default function ListenerEarningsScreen() {
       <Text style={styles.sectionTitle}>Payout History</Text>
       <Text style={styles.empty}>No payouts yet.</Text>
 
-      <Button title="Request Payout" onPress={() => {}} variant="outline" style={{ marginTop: Spacing.xl }} />
+      <Button
+        title="Request Payout"
+        onPress={() =>
+          Alert.alert(
+            'Payout request',
+            'Payout integration is coming soon. Your earnings remain in your wallet balance.'
+          )
+        }
+        variant="outline"
+        style={{ marginTop: Spacing.xl }}
+      />
       <Text style={styles.stub}>Payout integration coming soon</Text>
     </View>
   );

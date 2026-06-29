@@ -1,3 +1,4 @@
+import { blockUser } from '@/services/auth/AuthService';
 import { supabase } from '@/lib/supabase';
 import { ListenerProfile } from '@/types';
 
@@ -50,6 +51,8 @@ export async function submitReport(
     session_id: sessionId,
   });
   if (error) throw error;
+
+  await blockUser(reporterId, reportedId);
 }
 
 export async function submitReview(

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/ui/Button';
@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useWalletStore } from '@/store/walletStore';
 import { useSessionStore } from '@/store/sessionStore';
 import { SessionType } from '@/types';
+import { navigateToSession } from '@/utils/sessionNavigation';
 import { useTheme } from '@/hooks/useTheme';
 
 function createStyles(colors: FlatColors) {
@@ -124,16 +125,7 @@ export default function ListenerDetailScreen() {
     setModalVisible(false);
     const rate = getRateForType(listener, sessionType);
     const session = await createSession(profile.id, listener.id, sessionType, rate, listener.tags[0]);
-    const route =
-      sessionType === 'chat'
-        ? `/session/chat/${session.id}`
-        : sessionType === 'call'
-          ? `/session/call/${session.id}`
-          : `/session/video/${session.id}`;
-    router.push({
-      pathname: route as '/session/chat/[id]',
-      params: { id: session.id, listenerId: listener.id, listenerName: listener.display_name, rate: rate.toString() },
-    });
+    navigateToSession(session, { listenerName: listener.display_name });
   };
 
   return (
@@ -197,7 +189,14 @@ export default function ListenerDetailScreen() {
           <View style={styles.offlineBox}>
             <Ionicons name="moon" size={24} color={colors.inkSecondary} />
             <Text style={styles.offlineText}>Currently offline</Text>
-            <TouchableOpacity style={styles.notifyBtn}>
+            <TouchableOpacity
+              style={styles.notifyBtn}
+              onPress={() =>
+                Alert.alert(
+                  'Notification set',
+                  `We will notify you when ${listener.display_name} is online.`
+                )
+              }>
               <Text style={styles.notifyText}>Notify Me When Online</Text>
             </TouchableOpacity>
           </View>

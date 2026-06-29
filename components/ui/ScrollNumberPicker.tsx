@@ -68,15 +68,15 @@ export function ScrollNumberPicker({ values, value, onChange, suffix }: ScrollNu
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const scrollRef = useRef<ScrollView>(null);
-  const index = Math.max(0, values.indexOf(value));
 
   useEffect(() => {
-    if (index >= 0) {
-      setTimeout(() => {
-        scrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: false });
-      }, 50);
-    }
-  }, []);
+    const idx = Math.max(0, values.indexOf(value));
+    if (idx < 0) return;
+
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: idx * ITEM_HEIGHT, animated: false });
+    });
+  }, [value, values]);
 
   const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const i = Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT);

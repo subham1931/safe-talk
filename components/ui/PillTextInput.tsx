@@ -6,7 +6,9 @@ import {
   TextInputProps,
   ViewStyle,
   Text,
+  TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { BorderRadius, FlatColors, FontSize, Spacing, Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -15,6 +17,7 @@ interface PillTextInputProps extends TextInputProps {
   rightSlot?: ReactNode;
   containerStyle?: ViewStyle;
   label?: string;
+  showPasswordToggle?: boolean;
 }
 
 function createStyles(colors: FlatColors) {
@@ -59,11 +62,30 @@ export function PillTextInput({
   style,
   onFocus,
   onBlur,
+  secureTextEntry,
+  showPasswordToggle,
   ...props
 }: PillTextInputProps) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [focused, setFocused] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+
+  const isSecure = Boolean(secureTextEntry && !passwordVisible);
+  const passwordToggle =
+    showPasswordToggle && secureTextEntry ? (
+      <TouchableOpacity
+        onPress={() => setPasswordVisible((v) => !v)}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        accessibilityRole="button"
+        accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}>
+        <Ionicons
+          name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
+          size={22}
+          color={colors.inkSecondary}
+        />
+      </TouchableOpacity>
+    ) : null;
 
   return (
     <View style={containerStyle}>
@@ -73,6 +95,7 @@ export function PillTextInput({
         <TextInput
           style={[styles.input, style]}
           placeholderTextColor={colors.inkSecondary}
+          secureTextEntry={isSecure}
           onFocus={(e) => {
             setFocused(true);
             onFocus?.(e);
@@ -83,6 +106,7 @@ export function PillTextInput({
           }}
           {...props}
         />
+        {passwordToggle && <View style={styles.slot}>{passwordToggle}</View>}
         {rightSlot && <View style={styles.slot}>{rightSlot}</View>}
       </View>
     </View>

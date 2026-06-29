@@ -89,6 +89,16 @@ export async function updateProfile(userId: string, updates: Partial<Profile>) {
   return data as Profile;
 }
 
+export async function blockUser(userId: string, blockedUserId: string) {
+  const profile = await getProfile(userId);
+  if (!profile) throw new Error('Profile not found');
+  if (profile.blocked_user_ids.includes(blockedUserId)) return profile;
+
+  return updateProfile(userId, {
+    blocked_user_ids: [...profile.blocked_user_ids, blockedUserId],
+  });
+}
+
 export function subscribeToProfile(userId: string, callback: (profile: Profile) => void): RealtimeChannel {
   const channelName = `profile:${userId}`;
   removeSupabaseChannel(channelName);

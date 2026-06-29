@@ -8,10 +8,52 @@ import {
 import { Transaction } from '@/types';
 
 export async function rechargeWallet(amount: number, paymentReference: string) {
-  return invokeEdgeFunction<{ success: boolean; wallet_balance: number }>('wallet-recharge', {
-    amount,
-    paymentReference,
+  try {
+    return await invokeEdgeFunction<{ success: boolean; wallet_balance: number }>('wallet-recharge', {
+      amount,
+      paymentReference,
+    });
+  } catch {
+    const { data, error } = await supabase.rpc('credit_wallet', {
+      p_amount: amount,
+      p_reference: paymentReference,
+    });
+    if (error) throw error;
+    return data as { success: boolean; wallet_balance: number };
+  }
+}
+
+export async function creditWallet(amount: number, reference = 'Manual credit') {
+  const { data, error } = await supabase.rpc('credit_wallet', {
+    p_amount: amount,
+    p_reference: reference,
   });
+  if (error) throw error;
+  return data as { success: boolean; wallet_balance: number };
+}
+
+export async function debitWallet(
+  amount: number,
+  sessionId?: string | null,
+  reference = 'Session charge'
+) {
+  const rounded = Math.round(amount * 100) / 100;
+
+  try {
+    return await invokeEdgeFunction<{ success: boolean; wallet_balance: number }>('wallet-debit', {
+      amount: rounded,
+      sessionId: sessionId ?? null,
+      reference,
+    });
+  } catch {
+    const { data, error } = await supabase.rpc('debit_wallet', {
+      p_amount: rounded,
+      p_session_id: sessionId ?? null,
+      p_reference: reference,
+    });
+    if (error) throw error;
+    return data as { success: boolean; wallet_balance: number };
+  }
 }
 
 export async function getTransactions(userId: string): Promise<Transaction[]> {

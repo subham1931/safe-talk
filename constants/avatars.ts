@@ -9,7 +9,10 @@ export const AVATARS = [
   { id: 'flower', emoji: '🌸', color: '#FDF2F8', darkColor: '#2A2026' },
 ];
 
+export const CUSTOM_AVATAR_ID = 'custom';
+
 export function getAvatar(id?: string) {
+  if (!id || id === CUSTOM_AVATAR_ID) return AVATARS[0];
   return AVATARS.find((a) => a.id === id) ?? AVATARS[0];
 }
 

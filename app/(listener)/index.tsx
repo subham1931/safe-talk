@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Switch, Modal, TouchableOpacity } from 'react-native';
+import { router } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { FlatColors, FontSize, Spacing, BorderRadius } from '@/constants/theme';
@@ -9,6 +10,7 @@ import { useSessionStore } from '@/store/sessionStore';
 import { getListenerProfile } from '@/services/listener/ListenerService';
 import { ListenerProfile } from '@/types';
 import { formatCurrency } from '@/utils/helpers';
+import { navigateToSession } from '@/utils/sessionNavigation';
 import { useTheme } from '@/hooks/useTheme';
 
 function createStyles(colors: FlatColors) {
@@ -95,6 +97,13 @@ export default function ListenerDashboardScreen() {
     ? Math.min(100, (listenerProfile.today_minutes / listenerProfile.daily_target_minutes) * 100)
     : 0;
 
+  const handleAccept = async () => {
+    if (!pendingRequest) return;
+    const session = pendingRequest;
+    await acceptSession(session.id);
+    navigateToSession({ ...session, status: 'active' }, { listenerName: '', perspective: 'listener' });
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Listener Dashboard</Text>
@@ -161,7 +170,7 @@ export default function ListenerDashboardScreen() {
               />
               <Button
                 title="Accept"
-                onPress={() => pendingRequest && acceptSession(pendingRequest.id)}
+                onPress={handleAccept}
               />
             </View>
           </View>

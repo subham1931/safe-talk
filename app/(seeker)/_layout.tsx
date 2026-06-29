@@ -12,7 +12,7 @@ export default function SeekerTabLayout() {
   const tabBarInset = useFloatingTabBarInset();
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1, backgroundColor: colors.background, overflow: 'hidden' }}>
       <Tabs
         tabBar={(props) => <FloatingTabBar {...props} />}
         screenOptions={{

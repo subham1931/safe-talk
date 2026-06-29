@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import { Profile, UserRole } from '@/types';
@@ -15,6 +16,8 @@ import {
 } from '@/services/auth/AuthService';
 import { removeAllSupabaseChannels } from '@/lib/supabase';
 import { useWalletStore } from './walletStore';
+
+const ONBOARDING_KEY = 'hasSeenOnboarding';
 
 interface AuthState {
   profile: Profile | null;
@@ -67,9 +70,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
   initialize: async () => {
     try {
+      const hasSeenOnboarding = (await AsyncStorage.getItem(ONBOARDING_KEY)) === 'true';
+
       const session = await getSession();
       if (!session?.user) {
-        set({ isLoading: false, isAuthenticated: false });
+        set({ isLoading: false, isAuthenticated: false, hasSeenOnboarding });
         return;
       }
 
@@ -82,13 +87,17 @@ export const useAuthStore = create<AuthState>((set, get) => {
         profile,
         isAuthenticated: true,
         isLoading: false,
+        hasSeenOnboarding,
       });
     } catch {
       set({ isLoading: false, isAuthenticated: false });
     }
   },
 
-  setHasSeenOnboarding: (value) => set({ hasSeenOnboarding: value }),
+  setHasSeenOnboarding: async (value) => {
+    await AsyncStorage.setItem(ONBOARDING_KEY, value ? 'true' : 'false');
+    set({ hasSeenOnboarding: value });
+  },
 
   loginWithEmail: async (email, password) => {
     await signInWithEmail(email, password);
@@ -131,8 +140,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
   refreshProfile: async () => {
     const session = await getSession();
     if (!session?.user) return;
+
     const profile = await getProfile(session.user.id);
-    set({ profile });
+    if (profile) {
+      startProfileSubscription(session.user.id);
+    }
+    set({ profile, isAuthenticated: true });
   },
 
   logout: async () => {

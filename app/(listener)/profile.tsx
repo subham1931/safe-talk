@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ThemeSegmentControl } from '@/components/ui/ThemeSegmentControl';
 import { FlatColors, FontSize, Spacing, BorderRadius } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
@@ -50,8 +52,11 @@ function createStyles(colors: FlatColors) {
       padding: Spacing.md,
       backgroundColor: colors.surface,
       borderRadius: BorderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: Spacing.sm,
     },
-    menuLabel: { fontSize: FontSize.md, color: colors.text },
+    menuLabel: { flex: 1, fontSize: FontSize.md, color: colors.text },
   });
 }
 
@@ -60,23 +65,14 @@ export default function ListenerProfileScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const profile = useAuthStore((s) => s.profile);
   const [listenerProfile, setListenerProfile] = useState<ListenerProfile | null>(null);
+  const [logoutVisible, setLogoutVisible] = useState(false);
+  const [blockListVisible, setBlockListVisible] = useState(false);
 
   useEffect(() => {
     if (profile) getListenerProfile(profile.id).then(setListenerProfile);
   }, [profile]);
 
-  const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: () => {
-          void logoutAndRedirect();
-        },
-      },
-    ]);
-  };
+  const handleLogout = () => setLogoutVisible(true);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -105,12 +101,47 @@ export default function ListenerProfileScreen() {
         ))}
       </View>
 
-      <View style={styles.menuItem}>
+      <TouchableOpacity
+        style={styles.menuItem}
+        onPress={() => router.push('/edit-profile')}>
+        <Ionicons name="create-outline" size={22} color={colors.textSecondary} />
+        <Text style={styles.menuLabel}>Edit Profile</Text>
+        <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.menuItem} onPress={() => setBlockListVisible(true)}>
         <Ionicons name="ban-outline" size={22} color={colors.textSecondary} />
         <Text style={styles.menuLabel}>Block List</Text>
-      </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+      </TouchableOpacity>
 
       <Button title="Logout" onPress={handleLogout} variant="outline" style={{ marginTop: Spacing.xl }} />
+
+      <ConfirmDialog
+        visible={logoutVisible}
+        title="Logout"
+        message="Are you sure you want to logout?"
+        variant="danger"
+        confirmLabel="Logout"
+        cancelLabel="Cancel"
+        onCancel={() => setLogoutVisible(false)}
+        onConfirm={() => {
+          setLogoutVisible(false);
+          void logoutAndRedirect();
+        }}
+      />
+
+      <ConfirmDialog
+        visible={blockListVisible}
+        title="Block List"
+        message={
+          profile?.blocked_user_ids.length
+            ? `${profile.blocked_user_ids.length} user(s) blocked.`
+            : 'No blocked users yet.'
+        }
+        variant="info"
+        onConfirm={() => setBlockListVisible(false)}
+      />
     </ScrollView>
   );
 }

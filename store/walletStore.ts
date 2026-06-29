@@ -3,6 +3,7 @@ import { Transaction } from '@/types';
 import {
   getTransactions,
   rechargeWallet,
+  creditWallet,
   subscribeToWallet,
   unsubscribeFromWallet,
 } from '@/services/wallet/WalletService';
@@ -16,6 +17,7 @@ interface WalletState {
   setBalance: (balance: number) => void;
   fetchTransactions: () => Promise<void>;
   recharge: (amount: number, packId?: string) => Promise<boolean>;
+  addCredits: (amount: number) => Promise<boolean>;
   subscribe: (userId: string) => () => void;
   reset: () => void;
 }
@@ -41,6 +43,20 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       if (!payment.success) return false;
 
       const result = await rechargeWallet(amount, payment.transactionId);
+      set({ balance: result.wallet_balance, isProcessing: false });
+      await get().fetchTransactions();
+      useAuthStore.getState().refreshProfile();
+      return true;
+    } catch {
+      set({ isProcessing: false });
+      return false;
+    }
+  },
+
+  addCredits: async (amount) => {
+    set({ isProcessing: true });
+    try {
+      const result = await creditWallet(amount, 'Test credit');
       set({ balance: result.wallet_balance, isProcessing: false });
       await get().fetchTransactions();
       useAuthStore.getState().refreshProfile();

@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { OTPInput } from '@/components/ui/OTPInput';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DecorativeDashedCircles } from '@/components/ui/DecorativeDashedCircles';
 import { FlatColors, Spacing, TypographyTokens, Fonts, FontSize } from '@/constants/theme';
-import { verifyOtp } from '@/services/auth/AuthService';
+import { verifyOtp, sendOtp } from '@/services/auth/AuthService';
 import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/hooks/useTheme';
+import { ConfirmDialogVariant } from '@/components/ui/ConfirmDialog';
 
 function maskPhone(phone: string) {
   if (phone.length < 4) return phone;
@@ -16,7 +18,13 @@ function maskPhone(phone: string) {
 
 function createStyles(colors: FlatColors, typography: TypographyTokens) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background, padding: Spacing.lg, paddingTop: 80 },
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      padding: Spacing.lg,
+      paddingTop: 80,
+      overflow: 'hidden',
+    },
     title: { ...typography.headlineLarge, marginBottom: Spacing.sm },
     subtitle: { ...typography.caption, marginBottom: Spacing.xl },
     resend: { ...typography.caption, textAlign: 'center', marginTop: Spacing.lg },
@@ -37,6 +45,11 @@ export default function OtpScreen() {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [timer, setTimer] = useState(30);
+  const [dialog, setDialog] = useState<{
+    title: string;
+    message: string;
+    variant: ConfirmDialogVariant;
+  } | null>(null);
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
 
   useEffect(() => {
@@ -47,7 +60,11 @@ export default function OtpScreen() {
 
   const handleVerify = async () => {
     if (otp.length !== 6) {
-      Alert.alert('Invalid OTP', 'Please enter the 6-digit code.');
+      setDialog({
+        title: 'Invalid OTP',
+        message: 'Please enter the 6-digit code.',
+        variant: 'warning',
+      });
       return;
     }
 
@@ -57,9 +74,32 @@ export default function OtpScreen() {
       await refreshProfile();
       router.replace('/(auth)/role');
     } catch {
-      Alert.alert('Verification failed', 'Invalid or expired OTP. Please try again.');
+      setDialog({
+        title: 'Verification failed',
+        message: 'Invalid or expired OTP. Please try again.',
+        variant: 'error',
+      });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!phone) return;
+    try {
+      await sendOtp(phone);
+      setTimer(30);
+      setDialog({
+        title: 'Code sent',
+        message: 'A new verification code has been sent.',
+        variant: 'success',
+      });
+    } catch {
+      setDialog({
+        title: 'Resend failed',
+        message: 'Could not resend the code. Please try again.',
+        variant: 'error',
+      });
     }
   };
 
@@ -76,10 +116,18 @@ export default function OtpScreen() {
       {timer > 0 ? (
         <Text style={styles.resend}>Resend code in {timer}s</Text>
       ) : (
-        <TouchableOpacity onPress={() => setTimer(30)}>
+        <TouchableOpacity onPress={handleResend}>
           <Text style={styles.resendLink}>Did not receive? Resend code</Text>
         </TouchableOpacity>
       )}
+
+      <ConfirmDialog
+        visible={dialog !== null}
+        title={dialog?.title ?? ''}
+        message={dialog?.message}
+        variant={dialog?.variant}
+        onConfirm={() => setDialog(null)}
+      />
     </View>
   );
 }

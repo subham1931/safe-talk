@@ -12,6 +12,7 @@ export interface Profile {
   is_age_verified: boolean;
   anonymous_name?: string;
   avatar_id?: string;
+  avatar_url?: string | null;
   gender?: string;
   date_of_birth?: string;
   wallet_balance: number;

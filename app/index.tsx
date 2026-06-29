@@ -1,58 +1,78 @@
-import { useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { router } from 'expo-router';
-import { FlatColors, FontSize, Spacing, Fonts } from '@/constants/theme';
+import { Fonts, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
-import { useTheme } from '@/hooks/useTheme';
+import { getListenerProfile } from '@/services/listener/ListenerService';
 
-function createStyles(colors: FlatColors) {
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    logoContainer: { alignItems: 'center' },
-    logoCircle: {
-      width: 100,
-      height: 100,
-      borderRadius: 50,
-      backgroundColor: 'rgba(255,255,255,0.25)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: Spacing.lg,
-    },
-    logoEmoji: { fontSize: 48 },
-    title: {
-      fontFamily: Fonts.headlineExtra,
-      fontSize: FontSize.hero,
-      color: colors.onPrimary,
-      letterSpacing: -0.5,
-    },
-    tagline: {
-      fontFamily: Fonts.body,
-      fontSize: FontSize.md,
-      color: 'rgba(255,255,255,0.9)',
-      marginTop: Spacing.sm,
-    },
-  });
-}
+const SPLASH_BLACK = '#000000';
+const WORDMARK_WHITE = '#FFFFFF';
+const TAGLINE_MUTED = '#9A9AA1';
+
+const WORDMARK_DURATION = 650;
+const TAGLINE_DELAY = 150;
+const TAGLINE_DURATION = 400;
+const HOLD_AFTER_VISIBLE = 500;
+const ANIMATION_COMPLETE_MS = WORDMARK_DURATION + HOLD_AFTER_VISIBLE;
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: SPLASH_BLACK,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  content: {
+    alignItems: 'center',
+  },
+  title: {
+    fontFamily: Fonts.headlineExtra,
+    fontSize: 44,
+    color: WORDMARK_WHITE,
+    letterSpacing: -1,
+  },
+  tagline: {
+    fontFamily: Fonts.body,
+    fontSize: 15,
+    color: TAGLINE_MUTED,
+    marginTop: Spacing.sm,
+    textAlign: 'center',
+  },
+});
 
 export default function SplashScreen() {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
   const { isLoading, isAuthenticated, profile, hasSeenOnboarding } = useAuthStore();
-  const fadeAnim = new Animated.Value(0);
+  const [animationComplete, setAnimationComplete] = useState(false);
+
+  const wordmarkOpacity = useSharedValue(0);
+  const wordmarkScale = useSharedValue(0.92);
+  const taglineOpacity = useSharedValue(0);
 
   useEffect(() => {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }).start();
-  }, []);
+    const easing = Easing.out(Easing.cubic);
+
+    wordmarkOpacity.value = withTiming(1, { duration: WORDMARK_DURATION, easing });
+    wordmarkScale.value = withTiming(1, { duration: WORDMARK_DURATION, easing });
+    taglineOpacity.value = withDelay(
+      TAGLINE_DELAY,
+      withTiming(1, { duration: TAGLINE_DURATION, easing })
+    );
+
+    const timer = setTimeout(() => setAnimationComplete(true), ANIMATION_COMPLETE_MS);
+    return () => clearTimeout(timer);
+  }, [wordmarkOpacity, wordmarkScale, taglineOpacity]);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || !animationComplete) return;
 
-    const timer = setTimeout(() => {
+    (async () => {
       if (!isAuthenticated) {
         router.replace(hasSeenOnboarding ? '/(auth)/phone' : '/(auth)/onboarding');
         return;
@@ -64,27 +84,35 @@ export default function SplashScreen() {
       }
 
       if (profile.role === 'listener') {
-        router.replace('/(listener)');
+        const listenerProfile = await getListenerProfile(profile.id);
+        if (listenerProfile?.status === 'pending') {
+          router.replace('/(auth)/listener-pending');
+        } else {
+          router.replace('/(listener)');
+        }
       } else {
         router.replace('/(seeker)');
       }
-    }, 1500);
+    })();
+  }, [isLoading, animationComplete, isAuthenticated, profile, hasSeenOnboarding]);
 
-    return () => clearTimeout(timer);
-  }, [isLoading, isAuthenticated, profile, hasSeenOnboarding]);
+  const wordmarkStyle = useAnimatedStyle(() => ({
+    opacity: wordmarkOpacity.value,
+    transform: [{ scale: wordmarkScale.value }],
+  }));
+
+  const taglineStyle = useAnimatedStyle(() => ({
+    opacity: taglineOpacity.value,
+  }));
 
   return (
-    <LinearGradient
-      colors={[colors.sunsetStart, colors.sunsetEnd, colors.background]}
-      locations={[0, 0.55, 1]}
-      style={styles.container}>
-      <Animated.View style={[styles.logoContainer, { opacity: fadeAnim }]}>
-        <View style={styles.logoCircle}>
-          <Text style={styles.logoEmoji}>🛡️</Text>
-        </View>
+    <View style={styles.container}>
+      <Animated.View style={[styles.content, wordmarkStyle]}>
         <Text style={styles.title}>safeTalk</Text>
-        <Text style={styles.tagline}>Anonymous. Safe. Heard.</Text>
+        <Animated.Text style={[styles.tagline, taglineStyle]}>
+          Anonymous. Safe. Heard.
+        </Animated.Text>
       </Animated.View>
-    </LinearGradient>
+    </View>
   );
 }

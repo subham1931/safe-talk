@@ -59,7 +59,12 @@ function AppStack() {
           name="faqs"
           options={{ ...stackHeaderOptions, title: 'FAQs' }}
         />
+        <Stack.Screen
+          name="edit-profile"
+          options={{ ...stackHeaderOptions, title: 'Edit Profile' }}
+        />
         <Stack.Screen name="session/chat/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="session/waiting/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="session/call/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="session/video/[id]" options={{ headerShown: false }} />
         <Stack.Screen
